@@ -1,15 +1,5 @@
-"""
-Monitoramento de ativos: alocacao de equipes a bases e atribuicao de ativos.
-Fronteira de Pareto exata via AUGMECON2 (Mavrotas & Florios, 2013).
-
-Objetivos (ambos de minimizacao):
-    f1 = distancia total ativo -> base da equipe responsavel (metros, inteiro)
-    f2 = numero de equipes empregadas
-
-Como f2 e inteiro e o problema e biobjetivo, o passo unitario sobre f2 e o
-payoff lexicografico garantem a fronteira exata (Mavrotas & Florios, 2013, sec. 3.2).
-"""
 import math
+import time
 import pandas as pd
 import numpy as np
 import pyomo.environ as pyo
@@ -18,20 +8,21 @@ from pyomo.contrib.appsi.base import TerminationCondition as TC
 from pathlib import Path
 
 
+
 def _construir_modelo(d, S=8, eta=0.2, delta=1e-3):
     n, m = d.shape                        # d: n x m, metros inteiros
     carga_min = math.ceil(eta * n / S)    # restricao 6 do enunciado, s = 8
     M = pyo.ConcreteModel()
     M.I, M.J, M.K = pyo.RangeSet(n), pyo.RangeSet(m), pyo.RangeSet(S)
 
-    # variaveis (x, y, h conforme o enunciado; z marca equipe contratada)
+    # variaveis (x, y, h e z que marca equipe contratada)
     M.x = pyo.Var(M.I, M.J, within=pyo.Binary)
     M.y = pyo.Var(M.J, M.K, within=pyo.Binary)
     M.h = pyo.Var(M.I, M.K, within=pyo.Binary)
     M.z = pyo.Var(M.K, within=pyo.Binary)
 
     # funcoes objetivo
-    M.f1 = pyo.Expression(expr=sum(int(d[i-1, j-1]) * M.x[i, j] for i in M.I for j in M.J))
+    M.f1 = pyo.Expression(expr=sum(float(d[i-1, j-1]) * M.x[i, j] for i in M.I for j in M.J))
     M.f2 = pyo.Expression(expr=sum(M.z[k] for k in M.K))
 
     # restricoes 1 a 6 do enunciado (1 relaxada para equipes nao contratadas)
@@ -79,21 +70,21 @@ def _resolver(M, objetivo, gap=0.0, tempo=600):
     raise RuntimeError(f'solver terminou com {res.termination_condition} (limite de tempo?)')
 
 
-def _payoff(M, S=8):
+def _payoff(M, S=8, tol_f1=1e-6):
     """Tabela payoff lexicografica (Mavrotas 2009, sec. 3.1). Para p = 2 ela da o nadir exato."""
     M.eps = S
     M.cf1.deactivate(); M.cf2.deactivate()
 
     # linha 1: min f1, depois min f2 com f1 fixo no otimo (f1 inteiro -> folga 0.5 basta)
-    _resolver(M, M.obj_f1);  f1_min = round(pyo.value(M.f1))
-    M.f1_lim = f1_min + 0.5; M.cf1.activate()
+    _resolver(M, M.obj_f1);  f1_min = pyo.value(M.f1)
+    M.f1_lim = f1_min + tol_f1; M.cf1.activate()
     _resolver(M, M.obj_f2);  f2_max = round(pyo.value(M.f2))
     M.cf1.deactivate()
 
     # linha 2: min f2, depois min f1 com f2 fixo no otimo
     _resolver(M, M.obj_f2);  f2_min = round(pyo.value(M.f2))
     M.f2_lim = f2_min; M.cf2.activate()
-    _resolver(M, M.obj_f1);  f1_max = round(pyo.value(M.f1))
+    _resolver(M, M.obj_f1);  f1_max = pyo.value(M.f1)
     M.cf2.deactivate()
 
     return dict(f1_min=f1_min, f1_max=f1_max, f2_min=f2_min, f2_max=f2_max)
@@ -105,7 +96,7 @@ def _extrair(M, e):
     equipes = {k: dict(base=next(j for j in M.J if pyo.value(M.y[j, k]) > 0.5),
                        ativos=[i for i in M.I if pyo.value(M.h[i, k]) > 0.5])
                for k in M.K if pyo.value(M.z[k]) > 0.5}
-    return dict(eps=e, f1=round(pyo.value(M.f1)), f2=round(pyo.value(M.f2)),
+    return dict(eps=e, f1=pyo.value(M.f1), f2=round(pyo.value(M.f2)),
                 folga=pyo.value(M.s), bases=bases, atrib=atrib, equipes=equipes)
 
 
@@ -133,7 +124,7 @@ def _augmecon2(M, payoff, passo=1):
 
 if __name__ == "__main__":
 
-    pasta = Path.cwd()
+    pasta = Path.cwd() / 'dados'
     arquivo = pasta / 'probdata.csv'
 
     df_dados = pd.read_csv(arquivo, sep=';', decimal=',', header=None,
@@ -143,16 +134,20 @@ if __name__ == "__main__":
     df_dados['ativo_id'] = df_dados.groupby(['lat_ativo', 'lon_ativo'], sort=False).ngroup()
     df_dados.to_csv("identificadores.csv", sep=";", decimal=",", index=True)
 
-    # matriz ativos x bases em metros inteiros (coeficientes inteiros de f1)
+    # matriz ativos x bases em km (f1 real; so f2 precisa ser inteiro no AUGMECON2)
     matriz_d = df_dados.pivot(index='ativo_id', columns='base_id', values='dist').to_numpy()
-    matriz_d = np.rint(matriz_d * 1000).astype(int)
 
     M = _construir_modelo(matriz_d)
+    inicio = time.time()
     payoff = _payoff(M)
     print('payoff:', payoff)
     pontos = _augmecon2(M, payoff)
+    fim = time.time()
+    tempo_decorrido = fim - inicio
+    print(f"Tempo de execução: {tempo_decorrido:.4f} segundos")
+
     for p in pontos:
         print(p['eps'], p['f2'], p['f1'], p['folga'], p['bases'])
 
     df = pd.DataFrame.from_dict(pontos)
-    df.to_csv("resultados_V2.csv", sep=";", decimal=",", index=True)
+    df.to_csv("resultados_modelo2.csv", sep=";", decimal=",", index=True)
