@@ -97,6 +97,20 @@ if __name__ == "__main__":
     f1_min, f2_min, f2_max = _payoff(M)
     print(f1_min, f2_min, f2_max)
     pontos = _augmecon(M, f2_min, f2_max)
+
+    atribuicoes = []
+    pontos_corrigidos = []
+    for p in pontos:
+        bases_corrigidas = [j - 1 for j in p['bases']]
+        atrib_corrigido = {i - 1: j - 1 for i, j in p['atrib'].items()}
+        pontos_corrigidos.append(dict(eps=p['eps'], f1=p['f1'], f2=p['f2'], bases=bases_corrigidas))
+        atribuicoes += [{'eps': p['eps'], 'ativo_id': i, 'base_id': j} for i, j in atrib_corrigido.items()]
+        print(p['eps'], p['f2'], p['f1'], bases_corrigidas)
+
+    df = pd.DataFrame.from_dict(pontos_corrigidos)
+    df.to_csv("resultados_V2.csv", sep=";", decimal=",", index=True)
+
+    pd.DataFrame(atribuicoes).to_csv("atribuicoes_V2.csv", sep=";", decimal=",", index=False)
     for p in pontos:
         print(p['eps'], p['f2'], p['f1'], p['bases'])
 
