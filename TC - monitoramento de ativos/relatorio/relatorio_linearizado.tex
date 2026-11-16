@@ -1,0 +1,446 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[brazil]{babel}
+\usepackage{amsmath,amssymb}
+\usepackage{cite}
+\usepackage{url}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{etoolbox}
+
+% Nomes em portugues (a versao 1.6b do IEEEtran.cls fixa os termos em ingles)
+\makeatletter
+\def\fnum@table{TABELA~\thetable}
+\patchcmd{\thebibliography}{\section*{References}}{\section*{Referências}}{}{}
+\patchcmd{\thebibliography}{{References}}{{Referências}}{}{}
+\makeatother
+
+% Termos do pseudocodigo em portugues
+\floatname{algorithm}{Algoritmo}
+\renewcommand{\algorithmicrequire}{\textbf{Entrada:}}
+\renewcommand{\algorithmicensure}{\textbf{Saída:}}
+\algrenewcommand\algorithmicwhile{\textbf{enquanto}}
+\algrenewcommand\algorithmicdo{\textbf{faça}}
+\algrenewcommand\algorithmicif{\textbf{se}}
+\algrenewcommand\algorithmicthen{\textbf{então}}
+\algrenewcommand\algorithmicend{\textbf{fim}}
+\algrenewcommand\algorithmicreturn{\textbf{retorne}}
+\algrenewtext{EndWhile}{\textbf{fim enquanto}}
+\algrenewtext{EndIf}{\textbf{fim se}}
+\algnewcommand\algorithmicbreak{\textbf{interrompa}}
+\algnewcommand\Break{\algorithmicbreak}
+
+\begin{document}
+
+\title{Monitoramento de Ativos}
+
+\author{\authorblockN{Alexandra M. S. Aponte, Bernardo de S. Silva, João V. S. Simão,\\ Lais H. R. Damasceno, Lívia de M. C. M. Soares}
+\authorblockA{Programa de Pós-Graduação em Engenharia Elétrica (PPGEE)\\
+Universidade Federal de Minas Gerais (UFMG)\\
+Belo Horizonte, MG, Brasil}}
+
+\maketitle
+
+\begin{abstract}
+% TODO: redigir o resumo após a seção de resultados.
+Resumo a ser redigido após a conclusão da seção de resultados.
+\end{abstract}
+
+\IEEEpeerreviewmaketitle
+
+% =====================================================================
+\section{Introdução}
+
+Diante da evolução das leis e portarias aplicadas às barragens de mineração, faz-se necessária a elaboração do Plano de Ação de Emergência para Barragens de Mineração (PAEBM). O plano deve contar com sistemas automatizados de acionamento de sirenes, instalados em locais seguros. Com a instalação de inúmeras sirenes, sensores, medidores, painéis elétricos e outros ativos, torna-se necessária a realização de manutenções preventivas e corretivas nesses equipamentos \cite{batista_tc}.
+
+O presente trabalho tem como objetivo estudar e viabilizar a alocação otimizada de equipes às bases de manutenção, bem como a atribuição dos ativos às respectivas equipes. Dessa forma, deseja-se determinar:
+\begin{enumerate}
+  \item As bases onde serão alocadas as equipes de manutenção;
+  \item Os ativos sob responsabilidade de cada equipe.
+\end{enumerate}
+
+% =====================================================================
+\section{Modelagem Matemática do Problema}
+
+\subsection{Parâmetros do Problema}
+
+Para a formulação matemática do problema, consideram-se os seguintes conjuntos e índices:
+\begin{itemize}
+  \item $i \in I = \{1,\dots,n\}$: índice dos ativos;
+  \item $j \in J = \{1,\dots,m\}$: índice das bases de manutenção;
+  \item $k \in K = \{1,\dots,S_{\max}\}$: índice das equipes de manutenção.
+\end{itemize}
+
+Os parâmetros são dados de entrada conhecidos e fixos do problema, definidos antes da execução da otimização:
+\begin{itemize}
+  \item $n = 125$: número total de ativos;
+  \item $m = 14$: número total de bases de manutenção;
+  \item $S_{\max} = 8$: número máximo de equipes de manutenção disponíveis;
+  \item $d_{ij}$: distância, em km, entre o ativo $i$ e a base de manutenção $j$, fornecida no arquivo de dados do problema \cite{batista_tc};
+  \item $\eta = 0{,}2$: percentual mínimo utilizado na definição da quantidade de ativos sob a responsabilidade de cada equipe.
+\end{itemize}
+
+As distâncias $d_{ij}$ são utilizadas com o seu valor real, sem arredondamento. Como será discutido na Seção~\ref{sec:augmecon2}, a exigência de coeficientes inteiros do método AUGMECON2 recai apenas sobre a função objetivo tratada como restrição, que neste problema é o número de equipes.
+
+\subsection{Variáveis do Problema}
+
+As variáveis do problema (grandezas a serem encontradas pela ferramenta de otimização) são binárias e estão definidas da seguinte forma:
+\begin{itemize}
+  \item $x_{ij} \in \{0,1\}$: assume valor 1 se o ativo $i$ for atribuído à base $j$ e 0, caso contrário. A matriz representa a atribuição dos ativos às bases:
+  \begin{equation*}
+  X_{125\times14} =
+  \begin{bmatrix}
+  x_{1,1} & x_{1,2} & \cdots & x_{1,14}\\
+  x_{2,1} & x_{2,2} & \cdots & x_{2,14}\\
+  \vdots & \vdots & \ddots & \vdots\\
+  x_{125,1} & x_{125,2} & \cdots & x_{125,14}
+  \end{bmatrix}
+  \end{equation*}
+  \item $y_{jk} \in \{0,1\}$: assume valor 1 se a base $j$ for ocupada pela equipe $k$ e 0, caso contrário. A matriz representa a ocupação das bases pelas equipes:
+  \begin{equation*}
+  Y_{14\times8} =
+  \begin{bmatrix}
+  y_{1,1} & y_{1,2} & \cdots & y_{1,8}\\
+  y_{2,1} & y_{2,2} & \cdots & y_{2,8}\\
+  \vdots & \vdots & \ddots & \vdots\\
+  y_{14,1} & y_{14,2} & \cdots & y_{14,8}
+  \end{bmatrix}
+  \end{equation*}
+  \item $h_{ik} \in \{0,1\}$: assume valor 1 se o ativo $i$ for mantido pela equipe $k$ e 0, caso contrário. A matriz representa a atribuição dos ativos às equipes:
+  \begin{equation*}
+  H_{125\times8} =
+  \begin{bmatrix}
+  h_{1,1} & h_{1,2} & \cdots & h_{1,8}\\
+  h_{2,1} & h_{2,2} & \cdots & h_{2,8}\\
+  \vdots & \vdots & \ddots & \vdots\\
+  h_{125,1} & h_{125,2} & \cdots & h_{125,8}
+  \end{bmatrix}
+  \end{equation*}
+  \item $z_k \in \{0,1\}$: variável auxiliar que assume valor 1 se a equipe $k$ for empregada (contratada) e 0, caso contrário. O vetor $\mathbf{z} = (z_1,\dots,z_8)$ indica quais equipes estão em operação.
+\end{itemize}
+
+As variáveis $x_{ij}$, $y_{jk}$ e $h_{ik}$ são as definidas no enunciado do problema \cite{batista_tc}. A variável $z_k$ foi introduzida para tornar explícito o estado de cada equipe, o que simplifica a escrita da segunda função objetivo e das restrições que dependem de a equipe estar ou não empregada. O modelo possui, ao todo, $1750 + 112 + 1000 + 8 = 2870$ variáveis binárias.
+
+\subsection{Funções Objetivo}
+
+O problema de otimização envolve minimizar a distância total entre os ativos e suas respectivas equipes de manutenção, enquanto minimiza o número de equipes empregadas. Portanto, são consideradas duas funções objetivo conflitantes.
+
+\subsubsection{Função objetivo $f_1$: minimizar a distância total entre os ativos e suas respectivas equipes de manutenção}
+
+Considerando que cada equipe está alocada em alguma base de manutenção, a distância entre um ativo e sua equipe corresponde à distância entre o ativo e a base na qual a equipe está alocada. Para um ativo qualquer $i$, sua atribuição à base $j$ é representada pela variável binária $x_{ij}$. Assim, a distância associada ao ativo $i$ pode ser expressa por:
+\begin{equation}
+\sum_{j=1}^{m} d_{ij}\,x_{ij}.
+\end{equation}
+
+Considerando os $n = 125$ ativos do problema, a distância total é obtida somando as distâncias individuais de todos os ativos. Dessa forma, a função objetivo $f_1$ é definida como:
+\begin{equation}
+\min f_1(X) = \sum_{i=1}^{n}\sum_{j=1}^{m} d_{ij}\,x_{ij},
+\label{eq:f1}
+\end{equation}
+em que $d_{ij}$ representa a distância entre o ativo $i$ e a base $j$, enquanto $x_{ij}$ assume valor 1 quando o ativo $i$ é atribuído à base $j$ e 0, caso contrário.
+
+\subsubsection{Função objetivo $f_2$: minimizar o número de equipes empregadas}
+
+A variável $z_k$ indica se a equipe $k$ está empregada. Assim, o número de equipes empregadas é dado diretamente pela soma dos elementos do vetor $\mathbf{z}$:
+\begin{equation}
+\min f_2(\mathbf{z}) = \sum_{k=1}^{S_{\max}} z_k.
+\label{eq:f2}
+\end{equation}
+
+Como cada equipe empregada ocupa exatamente uma base, conforme a restrição~\eqref{eq:r1}, vale $\sum_{j=1}^{m} y_{jk} = z_k$ para todo $k$, e portanto $f_2$ coincide com a soma dos elementos da matriz $Y$, $\sum_{j=1}^{m}\sum_{k=1}^{S_{\max}} y_{jk}$. Ressalta-se que $f_2$ assume apenas valores inteiros entre 1 e $S_{\max}$, propriedade explorada pelo método de solução adotado.
+
+\subsection{Restrições do Problema}
+
+\subsubsection{Alocação das equipes}
+Cada equipe empregada deve ser alocada a exatamente uma base de manutenção, e uma equipe não empregada não ocupa nenhuma base. Dessa forma, para cada equipe $k$, a soma das variáveis $y_{jk}$ ao longo das $m$ bases deve ser igual a $z_k$:
+\begin{equation}
+\sum_{j=1}^{m} y_{jk} = z_k, \quad \forall k \in K.
+\label{eq:r1}
+\end{equation}
+
+Quando $z_k = 1$, a equipe ocupa exatamente uma base. Quando $z_k = 0$, tem-se $y_{jk} = 0$ para todas as bases. Nada impede que mais de uma equipe ocupe a mesma base.
+
+\subsubsection{Atribuição dos ativos às bases}
+Cada ativo deve ser atribuído a exatamente uma base de manutenção. Dessa forma, para cada ativo $i$, a soma das variáveis $x_{ij}$ ao longo das $m$ bases deve ser igual a 1:
+\begin{equation}
+\sum_{j=1}^{m} x_{ij} = 1, \quad \forall i \in I.
+\label{eq:r2}
+\end{equation}
+
+Como $x_{ij}$ é uma variável binária, essa restrição garante que cada ativo seja atribuído a uma única base de manutenção (e que nunca fique sem base).
+
+\subsubsection{Ocupação das bases}
+Cada ativo só pode ser atribuído a uma base de manutenção se esta estiver ocupada por pelo menos uma equipe. Para uma determinada base $j$, o número de equipes nela alocadas é dado por $\sum_{k=1}^{S_{\max}} y_{jk}$. Dessa forma, a atribuição do ativo $i$ à base $j$ é condicionada à existência de pelo menos uma equipe alocada nessa base:
+\begin{equation}
+x_{ij} \le \sum_{k=1}^{S_{\max}} y_{jk}, \quad \forall i \in I,\ \forall j \in J.
+\label{eq:r3}
+\end{equation}
+
+Caso nenhuma equipe esteja alocada à base $j$, o somatório será igual a zero e, consequentemente, $x_{ij}$ deverá ser igual a zero. Caso exista pelo menos uma equipe na base, $x_{ij}$ poderá assumir valor 0 ou 1, permitindo a atribuição do ativo àquela base.
+
+\subsubsection{Atribuição dos ativos às equipes}
+Cada ativo deve ser atribuído a exatamente uma equipe de manutenção. Dessa forma, para cada ativo $i$, a soma das variáveis $h_{ik}$ ao longo das $S_{\max}$ equipes deve ser igual a 1:
+\begin{equation}
+\sum_{k=1}^{S_{\max}} h_{ik} = 1, \quad \forall i \in I.
+\label{eq:r4}
+\end{equation}
+
+\subsubsection{Compatibilidade entre ativo, base e equipe}
+Cada ativo só pode ser atribuído a uma equipe de manutenção se esta estiver ocupando a mesma base na qual o ativo foi alocado. É necessário, portanto, garantir a compatibilidade entre a atribuição do ativo à base ($x_{ij}$), a atribuição do ativo à equipe ($h_{ik}$) e a alocação da equipe à base ($y_{jk}$):
+\begin{equation}
+h_{ik} + x_{ij} \le 1 + y_{jk}, \quad \forall i \in I,\ \forall j \in J,\ \forall k \in K.
+\label{eq:r5}
+\end{equation}
+
+Quando o ativo $i$ é atribuído à base $j$ ($x_{ij} = 1$) e à equipe $k$ ($h_{ik} = 1$), a restrição força $y_{jk} = 1$. Portanto, a equipe $k$ deve estar alocada à mesma base $j$ do ativo.
+
+\subsubsection{Quantidade mínima de ativos por equipe}
+Considerando a existência de $n$ ativos e $s$ equipes empregadas, cada equipe deve ser responsável por pelo menos $\eta n/s$ ativos \cite{batista_tc}. O número de equipes empregadas não é um dado do problema, mas o valor da própria função objetivo $f_2$: a carga mínima de cada equipe depende, portanto, de quantas equipes a solução emprega, e não do número máximo $S_{\max} = 8$. Como o número de ativos é inteiro, a carga mínima de cada equipe quando $s$ equipes são empregadas é
+\begin{equation}
+L_s = \left\lceil \frac{\eta\, n}{s} \right\rceil, \quad s = 1,\dots,S_{\max},
+\label{eq:Lp}
+\end{equation}
+cujos valores, para $\eta = 0{,}2$ e $n = 125$, estão na Tabela~\ref{tab:Lp}.
+
+\begin{table}[!t]
+\renewcommand{\arraystretch}{1.2}
+\caption{Carga mínima por equipe em função do número de equipes empregadas}
+\label{tab:Lp}
+\centering
+\begin{tabular}{lcccccccc}
+\hline
+$s$ & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8\\
+$\eta n/s$ & 25 & 12,5 & 8,33 & 6,25 & 5 & 4,17 & 3,57 & 3,13\\
+$L_s$ & 25 & 13 & 9 & 7 & 5 & 5 & 4 & 4\\
+\hline
+\end{tabular}
+\end{table}
+
+Escrita diretamente, a restrição seria $\sum_{i} h_{ik} \ge \lceil \eta n / f_2 \rceil\, z_k$, que não é linear, pois $f_2 = \sum_k z_k$ aparece no denominador. Para linearizá-la, utiliza-se a ordenação das equipes imposta pela restrição de quebra de simetria \eqref{eq:r9}, segundo a qual as equipes empregadas são sempre as primeiras do vetor $\mathbf{z}$. Definindo $z_{S_{\max}+1} = 0$, a diferença
+\begin{equation}
+w_s = z_s - z_{s+1}, \quad s = 1,\dots,S_{\max},
+\end{equation}
+vale 1 apenas para $s = f_2$ e 0 para os demais índices. Por exemplo, para $\mathbf{z} = (1,1,1,0,0,0,0,0)$, tem-se $w_3 = 1$ e $w_s = 0$ para $s \neq 3$. Assim, a restrição de carga mínima é escrita, de forma linear, como
+\begin{equation}
+\sum_{i=1}^{n} h_{ik} \ \ge \ \sum_{s=k}^{S_{\max}} L_s\,(z_s - z_{s+1}), \quad \forall k \in K.
+\label{eq:r6}
+\end{equation}
+
+Se a equipe $k$ está empregada ($z_k = 1$), então $k \le f_2$ e o somatório do lado direito contém o termo $s = f_2$, de modo que vale exatamente $L_{f_2}$. Se a equipe $k$ não está empregada ($z_k = 0$), a ordenação garante $z_s = 0$ para todo $s \ge k$, o lado direito se anula e a restrição torna-se inativa. A formulação dispensa constantes do tipo ``big-M'' e não acrescenta variáveis ao modelo, mas depende da restrição \eqref{eq:r9}, que deixa de ser apenas um recurso de aceleração e passa a integrar a formulação.
+
+\subsubsection{Número máximo de equipes}
+Podem ser empregadas, no máximo, $S_{\max} = 8$ equipes de manutenção. Como o conjunto de equipes é $K = \{1,\dots,8\}$, essa condição é atendida pela própria dimensão do vetor $\mathbf{z}$:
+\begin{equation}
+\sum_{k=1}^{S_{\max}} z_k \le S_{\max} = 8.
+\label{eq:r7}
+\end{equation}
+
+\subsubsection{Vínculo entre ativo e equipe empregada}
+Um ativo só pode ser atribuído a uma equipe que esteja empregada:
+\begin{equation}
+h_{ik} \le z_k, \quad \forall i \in I,\ \forall k \in K.
+\label{eq:r8}
+\end{equation}
+
+Para soluções inteiras, essa restrição é consequência de \eqref{eq:r1}, \eqref{eq:r2} e \eqref{eq:r5}: se $z_k = 0$, então $y_{jk} = 0$ para toda base $j$, e \eqref{eq:r5} impede $h_{ik} = 1$. Na relaxação linear, contudo, ela não é implicada pelas demais, e sua inclusão estreita a região viável do problema relaxado, o que fortalece os limitantes inferiores utilizados pelo algoritmo de \textit{branch-and-cut} (Seção~\ref{sec:bc}).
+
+\subsubsection{Quebra de simetria}
+As $S_{\max}$ equipes são idênticas: possuem o mesmo custo e nenhum elemento do modelo as distingue, de modo que o índice $k$ é apenas um rótulo. Assim, uma mesma solução física com 3 equipes pode ser representada de $\binom{8}{3} = 56$ formas equivalentes, conforme a escolha de quais rótulos ficam ativos. Para eliminar essas repetições, impõe-se que as equipes empregadas sejam sempre as primeiras do vetor $\mathbf{z}$:
+\begin{equation}
+z_k \ge z_{k+1}, \quad k = 1,\dots,S_{\max}-1.
+\label{eq:r9}
+\end{equation}
+
+Para $f_2 = 3$, por exemplo, apenas $\mathbf{z} = (1,1,1,0,0,0,0,0)$ é admitido. A restrição não exclui nenhuma solução fisicamente distinta e, portanto, não altera o conjunto de Pareto. Ela cumpre dois papéis: reduz o número de nós equivalentes que o algoritmo de enumeração implícita precisaria explorar \cite{margot2010} e permite escrever de forma linear a restrição de carga mínima \eqref{eq:r6}, que depende do número de equipes empregadas.
+
+\subsection{Síntese do Modelo}
+
+O modelo construído é um problema de otimização multiobjetivo linear inteiro binário, com duas funções objetivo, \eqref{eq:f1} e \eqref{eq:f2}, sujeitas às restrições \eqref{eq:r1} a \eqref{eq:r9}. Considerando as dimensões do problema, o modelo possui 2870 variáveis binárias e 17023 restrições, das quais 14000 correspondem à restrição de compatibilidade \eqref{eq:r5}.
+
+% =====================================================================
+\section{Método de Solução}
+
+\subsection{Método $\varepsilon$-restrito}
+
+No método $\varepsilon$-restrito \cite{haimes1971,chankong1983}, uma das funções objetivo é otimizada enquanto as demais são transformadas em restrições limitadas por parâmetros $e_k$. No problema biobjetivo, mantém-se $f_1$ como objetivo e restringe-se $f_2$:
+\begin{equation}
+\min_{\mathbf{v}\in\Omega} f_1(\mathbf{v}) \quad \text{s.a.} \quad f_2(\mathbf{v}) \le e_2,
+\label{eq:eps}
+\end{equation}
+em que $\mathbf{v} = (X, Y, H, \mathbf{z})$ reúne as variáveis de decisão e $\Omega$ é a região viável definida por \eqref{eq:r1} a \eqref{eq:r9}. Variando $e_2$ ao longo da faixa de valores de $f_2$, obtém-se uma sequência de soluções da fronteira de Pareto. Diferentemente do método das somas ponderadas, o $\varepsilon$-restrito alcança também soluções não suportadas, isto é, pontos que não pertencem à envoltória convexa da fronteira, o que é essencial em problemas inteiros \cite{mavrotas2009}.
+
+O método convencional apresenta, entretanto, duas fragilidades apontadas por Mavrotas \cite{mavrotas2009}. Primeiro, a solução ótima de \eqref{eq:eps} só tem eficiência garantida quando a restrição em $f_2$ está ativa. Havendo ótimos alternativos para $f_1$, o solver pode retornar uma solução fracamente eficiente, dominada por outra de mesmo $f_1$ e menor $f_2$. Segundo, a faixa de variação de $e_2$ depende da tabela \textit{payoff}, cujos extremos também podem ser fracamente eficientes se calculados por otimização simples.
+
+\subsection{Método $\varepsilon$-restrito aumentado (AUGMECON)}
+
+Para contornar a primeira fragilidade, o AUGMECON \cite{mavrotas2009} converte a restrição em igualdade por meio de uma variável de folga $S_2 \ge 0$ e inclui essa folga, com prioridade inferior, na função objetivo. Para o problema de minimização tratado aqui, a formulação torna-se:
+\begin{equation}
+\begin{aligned}
+\min_{\mathbf{v}\in\Omega,\ S_2} \quad & f_1(\mathbf{v}) - \delta\,\frac{S_2}{r_2}\\
+\text{s.a.} \quad & f_2(\mathbf{v}) + S_2 = e_2,\\
+& S_2 \ge 0,
+\end{aligned}
+\label{eq:aug}
+\end{equation}
+em que $r_2$ é a amplitude de $f_2$ obtida da tabela \textit{payoff}, usada para normalizar a folga, e $\delta$ é um número suficientemente pequeno, tipicamente entre $10^{-6}$ e $10^{-3}$ (denotado por \textit{eps} no artigo original). Entre as soluções de mesmo $f_1$, o termo $-\delta S_2/r_2$ favorece a de maior folga, isto é, a de menor $f_2$, o que elimina as soluções fracamente eficientes \cite{mavrotas2009}. Adotou-se $\delta = 10^{-3}$.
+
+Em relação à formulação de Mavrotas, escrita para maximização com $f_2 - S_2 = e_2$ e termo $+\,\text{eps}\cdot S_2/r_2$, os sinais foram invertidos porque ambos os objetivos deste problema são de minimização: $S_2$ passa a ser uma folga e o termo aumentado entra subtraindo.
+
+Para contornar a segunda fragilidade, a tabela \textit{payoff} é construída por otimização lexicográfica \cite{mavrotas2009}: otimiza-se um objetivo e, entre os seus ótimos alternativos, otimiza-se o outro, mantendo o primeiro fixo no valor ótimo. Em problemas biobjetivo, essa tabela fornece exatamente o ponto ideal e o ponto nadir da fronteira \cite{mavrotas2013}.
+
+\subsection{AUGMECON2 e fronteira de Pareto exata}
+\label{sec:augmecon2}
+
+O AUGMECON2 \cite{mavrotas2013} acrescenta ao AUGMECON um mecanismo de salto (\textit{bypass}) baseado na folga. O intervalo de $f_2$ é dividido em $q_2$ partes, com passo $\text{step}_2 = r_2/q_2$, e os valores de $e_2$ são percorridos sequencialmente, apertando a restrição. Se, em uma iteração, a solução obtida tem folga $S_2 \ge \text{step}_2$, as iterações seguintes produziriam a mesma solução, mudando apenas o valor da folga. O número de iterações redundantes é dado pelo coeficiente de \textit{bypass}
+\begin{equation}
+b = \left\lfloor \frac{S_2}{\text{step}_2} \right\rfloor,
+\label{eq:bypass}
+\end{equation}
+e essas $b$ iterações são saltadas. Para dois objetivos, o fator de ponderação $10^{-(P-2)}$ introduzido em \cite{mavrotas2013} para diferenciar os objetivos restritos, em que $P$ é o número de objetivos, vale 1, e a função objetivo coincide com \eqref{eq:aug}.
+
+Mavrotas e Florios \cite{mavrotas2013} mostram que, em problemas inteiros, o AUGMECON2 gera o conjunto de Pareto exato quando duas condições são satisfeitas: os coeficientes dos objetivos tratados como restrição são inteiros, e o ponto nadir é conhecido. Nessas condições, adota-se passo unitário, $\text{step}_2 = 1$, com $r_2 + 1$ pontos de grade, e nenhum ponto da fronteira deixa de ser visitado. Ambas as condições são atendidas neste problema. O objetivo restrito $f_2$ conta equipes, logo seus coeficientes são inteiros e $f_2 \in \{1,\dots,8\}$. O objetivo $f_1$, que permanece como função objetivo principal, é otimizado diretamente pelo solver e não precisa ter coeficientes inteiros, o que justifica o uso das distâncias reais $d_{ij}$. Por ser um problema biobjetivo, o nadir é dado exatamente pela tabela \textit{payoff} lexicográfica.
+
+\subsection{Adaptação ao problema de monitoramento de ativos}
+
+\subsubsection{Tabela payoff}
+A tabela \textit{payoff} é obtida em quatro resoluções do modelo, com $e_2 = S_{\max}$, valor para o qual a restrição de $f_2$ não limita a região viável:
+\begin{enumerate}
+  \item minimiza-se $f_1$, obtendo $f_1^{\min}$;
+  \item minimiza-se $f_2$ sujeito a $f_1 \le f_1^{\min} + \tau$, obtendo $f_2^{\max}$, o maior número de equipes que ainda interessa ao decisor;
+  \item minimiza-se $f_2$, obtendo $f_2^{\min}$;
+  \item com $e_2 = f_2^{\min}$, minimiza-se $f_1$, obtendo $f_1^{\max}$.
+\end{enumerate}
+
+A restrição do passo 2 corresponde à condição $f_1 = f_1^{\min}$ da otimização lexicográfica de \cite{mavrotas2009}. Ela foi escrita como desigualdade com tolerância $\tau = 10^{-6}$ porque $f_1$ não pode ser inferior ao seu mínimo, o que torna as duas formas equivalentes, e porque uma igualdade exata entre números reais poderia se tornar inviável por erros de arredondamento do solver. No passo 4, não é necessária uma restrição adicional: com $e_2 = f_2^{\min}$, a própria restrição $f_2 + S_2 = e_2$ com $S_2 \ge 0$ impõe $f_2 = f_2^{\min}$.
+
+A Tabela~\ref{tab:payoff} apresenta a tabela \textit{payoff} obtida para os dados do problema, da qual resulta $r_2 = f_2^{\max} - f_2^{\min} = 7$.
+
+\begin{table}[!t]
+\renewcommand{\arraystretch}{1.2}
+\caption{Tabela payoff lexicográfica}
+\label{tab:payoff}
+\centering
+\begin{tabular}{lcc}
+\hline
+ & $f_1$ (km) & $f_2$ (equipes)\\
+\hline
+$\min f_1$, depois $\min f_2$ & 614,36 & 8\\
+$\min f_2$, depois $\min f_1$ & 2555,38 & 1\\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Laço do AUGMECON2}
+Com passo unitário, o parâmetro $e_2$ percorre os valores inteiros de $f_2^{\max}$ a $f_2^{\min}$, em ordem decrescente, de modo que a restrição é apertada a cada iteração. Após cada resolução de \eqref{eq:aug}, calcula-se o coeficiente de \textit{bypass} \eqref{eq:bypass} e saltam-se as $b$ iterações redundantes. Caso o subproblema se torne inviável, o laço é encerrado antecipadamente, pois valores menores de $e_2$ também seriam inviáveis \cite{mavrotas2009}. O procedimento é resumido no Algoritmo~\ref{alg:augmecon2}.
+
+\begin{algorithm}[!t]
+\caption{AUGMECON2 aplicado ao problema}
+\label{alg:augmecon2}
+\begin{algorithmic}[1]
+\Require dados $d_{ij}$, $\delta$, $\tau$
+\Ensure conjunto de Pareto $\mathcal{P}$
+\State Construir a tabela \textit{payoff} lexicográfica e obter $f_2^{\min}$, $f_2^{\max}$
+\State $r_2 \gets \max(f_2^{\max} - f_2^{\min},\, 1)$
+\State $\mathcal{P} \gets \emptyset$, \quad $e_2 \gets f_2^{\max}$
+\While{$e_2 \ge f_2^{\min}$}
+  \State Resolver \eqref{eq:aug} por \textit{branch-and-cut}
+  \If{subproblema inviável}
+    \State \Break
+  \EndIf
+  \State $\mathcal{P} \gets \mathcal{P} \cup \{(f_1^{*},\, f_2^{*},\, X^{*}, Y^{*}, H^{*})\}$
+  \State $b \gets \lfloor S_2^{*} \rfloor$ \Comment{passo unitário}
+  \State $e_2 \gets e_2 - (b + 1)$
+\EndWhile
+\State \Return $\mathcal{P}$
+\end{algorithmic}
+\end{algorithm}
+
+Cada ponto de $\mathcal{P}$ armazena, além dos valores de $f_1$ e $f_2$, as bases ocupadas, a base atribuída a cada ativo e, para cada equipe empregada, a base que ocupa e a lista de ativos sob sua responsabilidade, respondendo diretamente às duas questões formuladas na introdução.
+
+\subsection{Resolução dos subproblemas por branch-and-cut}
+\label{sec:bc}
+
+Cada iteração do AUGMECON2, assim como cada etapa da tabela \textit{payoff}, exige a resolução até a otimalidade de um problema de programação linear inteira mista. Esses subproblemas foram resolvidos pelo algoritmo de \textit{branch-and-cut} do solver HiGHS \cite{huangfu2018,highs}.
+
+O \textit{branch-and-cut} combina o \textit{branch-and-bound} \cite{landdoig1960} com a geração de planos de corte \cite{padberg1991,wolsey1998}. No \textit{branch-and-bound}, a condição de integralidade é relaxada e o problema linear resultante, resolvido no HiGHS pelo método simplex dual \cite{huangfu2018}, fornece um limitante inferior para o valor ótimo. Se a solução da relaxação possui alguma variável binária fracionária, o problema é dividido em dois subproblemas, fixando essa variável em 0 e em 1 (ramificação). Cada nó da árvore de busca é descartado quando sua relaxação é inviável, quando seu limitante inferior não é melhor que a melhor solução inteira já conhecida (incumbente), ou quando sua solução já é inteira. Os planos de corte são desigualdades válidas para todas as soluções inteiras que eliminam a solução fracionária corrente da relaxação, tornando os limitantes mais justos e reduzindo o tamanho da árvore \cite{wolsey1998}.
+
+Além da ramificação e dos cortes, o HiGHS aplica uma etapa de pré-processamento (\textit{presolve}), que remove restrições e variáveis redundantes e aperta limites, heurísticas primais para obter rapidamente boas soluções incumbentes e um mecanismo de detecção de simetrias \cite{highs}. As restrições \eqref{eq:r8} e \eqref{eq:r9} atuam no mesmo sentido, ao fortalecer a relaxação linear e ao eliminar representações equivalentes das soluções.
+
+A execução termina quando a diferença relativa entre o valor da incumbente $\bar f$ e o melhor limitante inferior $\underline f$,
+\begin{equation}
+\text{gap} = \frac{\bar f - \underline f}{|\bar f|},
+\end{equation}
+atinge a tolerância especificada. Como a exatidão da fronteira gerada pelo AUGMECON2 depende de cada subproblema ser resolvido até a otimalidade, foram adotadas tolerâncias relativa e absoluta nulas para o \textit{gap}. Qualquer término diferente de ``ótimo'' ou ``inviável'', como o esgotamento do tempo limite de 600~s por subproblema, interrompe a execução com erro, para que nenhuma solução subótima seja incorporada ao conjunto de Pareto.
+
+\subsection{Implementação computacional}
+
+O modelo foi implementado em Python, com a biblioteca de modelagem algébrica Pyomo \cite{bynum2021}, e resolvido pelo HiGHS \cite{highs} por meio da interface \texttt{appsi} do Pyomo. As restrições \eqref{eq:r1} a \eqref{eq:r9}, a restrição $f_2 + S_2 = e_2$ e a restrição auxiliar da tabela \textit{payoff} são declaradas uma única vez. Os valores de $e_2$, $r_2$ e $f_1^{\min} + \tau$ são parâmetros mutáveis, atualizados a cada iteração sem reconstruir o modelo. O modelo contém três funções objetivo declaradas ($f_1$, $f_2$ e a função aumentada de \eqref{eq:aug}), das quais apenas uma é ativada em cada resolução.
+
+A matriz de distâncias $D_{125\times14}$ é montada a partir do arquivo de dados, no qual cada linha contém as coordenadas de uma base, as coordenadas de um ativo e a distância entre ambos \cite{batista_tc}. Bases e ativos são identificados pelas suas coordenadas, e a matriz é obtida por pivotamento da tabela. A Tabela~\ref{tab:param} resume os parâmetros adotados.
+
+\begin{table}[!t]
+\renewcommand{\arraystretch}{1.2}
+\caption{Parâmetros da implementação}
+\label{tab:param}
+\centering
+\begin{tabular}{lc}
+\hline
+Parâmetro & Valor\\
+\hline
+Coeficiente do termo aumentado, $\delta$ & $10^{-3}$\\
+Passo da grade de $e_2$, $\text{step}_2$ & 1\\
+Tolerância lexicográfica, $\tau$ & $10^{-6}$ km\\
+\textit{Gap} relativo e absoluto do MIP & 0\\
+Tempo limite por subproblema & 600 s\\
+\hline
+\end{tabular}
+\end{table}
+
+% =====================================================================
+% \section{Resultados}
+% TODO: fronteira de Pareto, mapa das soluções e discussão.
+
+% =====================================================================
+\begin{thebibliography}{99}
+
+\bibitem{batista_tc}
+L. S. Batista, ``Monitoramento de ativos,'' Trabalho Computacional, Otimização Multiobjetivo, PPGEE, Universidade Federal de Minas Gerais, Belo Horizonte, 2026.
+
+\bibitem{haimes1971}
+Y. Y. Haimes, L. S. Lasdon, and D. A. Wismer, ``On a bicriterion formulation of the problems of integrated system identification and system optimization,'' \emph{IEEE Trans. Syst., Man, Cybern.}, vol. SMC-1, no. 3, pp. 296--297, 1971.
+
+\bibitem{chankong1983}
+V. Chankong and Y. Y. Haimes, \emph{Multiobjective Decision Making: Theory and Methodology}. New York: North-Holland, 1983.
+
+\bibitem{mavrotas2009}
+G. Mavrotas, ``Effective implementation of the $\varepsilon$-constraint method in multi-objective mathematical programming problems,'' \emph{Appl. Math. Comput.}, vol. 213, no. 2, pp. 455--465, 2009.
+
+\bibitem{mavrotas2013}
+G. Mavrotas and K. Florios, ``An improved version of the augmented $\varepsilon$-constraint method (AUGMECON2) for finding the exact Pareto set in multi-objective integer programming problems,'' \emph{Appl. Math. Comput.}, vol. 219, no. 18, pp. 9652--9669, 2013.
+
+\bibitem{landdoig1960}
+A. H. Land and A. G. Doig, ``An automatic method of solving discrete programming problems,'' \emph{Econometrica}, vol. 28, no. 3, pp. 497--520, 1960.
+
+\bibitem{padberg1991}
+M. Padberg and G. Rinaldi, ``A branch-and-cut algorithm for the resolution of large-scale symmetric traveling salesman problems,'' \emph{SIAM Review}, vol. 33, no. 1, pp. 60--100, 1991.
+
+\bibitem{wolsey1998}
+L. A. Wolsey, \emph{Integer Programming}. New York: Wiley, 1998.
+
+\bibitem{margot2010}
+F. Margot, ``Symmetry in integer linear programming,'' in \emph{50 Years of Integer Programming 1958--2008}, M. Jünger \emph{et al.}, Eds. Berlin: Springer, 2010, pp. 647--686.
+
+\bibitem{huangfu2018}
+Q. Huangfu and J. A. J. Hall, ``Parallelizing the dual revised simplex method,'' \emph{Math. Program. Comput.}, vol. 10, no. 1, pp. 119--142, 2018.
+
+\bibitem{highs}
+HiGHS, ``HiGHS: high performance software for linear optimization,'' 2026. [Online]. Disponível em: \url{https://highs.dev}
+
+\bibitem{bynum2021}
+M. L. Bynum, G. A. Hackebeil, W. E. Hart, C. D. Laird, B. L. Nicholson, J. D. Siirola, J.-P. Watson, and D. L. Woodruff, \emph{Pyomo: Optimization Modeling in Python}, 3rd ed. Cham: Springer, 2021.
+
+\end{thebibliography}
+
+\end{document}
