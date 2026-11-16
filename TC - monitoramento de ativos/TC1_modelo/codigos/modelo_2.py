@@ -10,41 +10,89 @@ from pathlib import Path
 
 
 def _construir_modelo(d, S=8, eta=0.2, delta=1e-3):
-    n, m = d.shape                        # d: n x m, metros inteiros
-    carga_min = math.ceil(eta * n / S)    # restricao 6 do enunciado, s = 8
+    n, m = d.shape                        # d: matriz 125 x 14; n: ativos e m: bases                       
     M = pyo.ConcreteModel()
     M.I, M.J, M.K = pyo.RangeSet(n), pyo.RangeSet(m), pyo.RangeSet(S)
 
-    # variaveis (x, y, h e z que marca equipe contratada)
-    M.x = pyo.Var(M.I, M.J, within=pyo.Binary)
-    M.y = pyo.Var(M.J, M.K, within=pyo.Binary)
-    M.h = pyo.Var(M.I, M.K, within=pyo.Binary)
-    M.z = pyo.Var(M.K, within=pyo.Binary)
+    # variaveis 
+    M.x = pyo.Var(M.I, M.J, within=pyo.Binary)  # ativo i alocado à base j 
+    M.y = pyo.Var(M.J, M.K, within=pyo.Binary)  # base k ocupada pela equipe k
+    M.h = pyo.Var(M.I, M.K, within=pyo.Binary)  # ativo i atribuido à equipe k
+    M.z = pyo.Var(M.K, within=pyo.Binary)       # equipe k foi contratada
 
     # funcoes objetivo
-    M.f1 = pyo.Expression(expr=sum(float(d[i-1, j-1]) * M.x[i, j] for i in M.I for j in M.J))
-    M.f2 = pyo.Expression(expr=sum(M.z[k] for k in M.K))
+    M.f1 = pyo.Expression(expr=sum(d[i-1, j-1] * M.x[i, j] for i in M.I for j in M.J))  # Somatório da distancia entre a bese e os ativos alocados
+    M.f2 = pyo.Expression(expr=sum(M.z[k] for k in M.K))                                # Somatório das equipes contratadas
 
-    # restricoes 1 a 6 do enunciado (1 relaxada para equipes nao contratadas)
-    M.c1 = pyo.Constraint(M.K, rule=lambda M, k: sum(M.y[j, k] for j in M.J) == M.z[k])
-    M.c2 = pyo.Constraint(M.I, rule=lambda M, i: sum(M.x[i, j] for j in M.J) == 1)
-    M.c3 = pyo.Constraint(M.I, M.J, rule=lambda M, i, j: M.x[i, j] <= sum(M.y[j, k] for k in M.K))
-    M.c4 = pyo.Constraint(M.I, rule=lambda M, i: sum(M.h[i, k] for k in M.K) == 1)
-    M.c5 = pyo.Constraint(M.I, M.J, M.K, rule=lambda M, i, j, k: M.h[i, k] + M.x[i, j] <= 1 + M.y[j, k])
-    M.c6 = pyo.Constraint(M.K, rule=lambda M, k: sum(M.h[i, k] for i in M.I) >= carga_min * M.z[k])
-    M.c7 = pyo.Constraint(M.I, M.K, rule=lambda M, i, k: M.h[i, k] <= M.z[k])        # redundante, ajuda o B&B
-    M.sim = pyo.Constraint(pyo.RangeSet(S - 1), rule=lambda M, k: M.z[k] >= M.z[k + 1])  # simetria
+    # Restrições 
+
+    # c1: Cada equipe contratada deve ser alocação a exatamente uma base
+    def c1_rule(M, k):
+        return sum(M.y[j, k] for j in M.J) == M.z[k]
+
+    M.c1 = pyo.Constraint(M.K, rule=c1_rule)
+
+
+    # c2: Cada ativo é atribuido a exatamente uma base
+    def c2_rule(M, i):
+        return sum(M.x[i, j] for j in M.J) == 1
+
+    M.c2 = pyo.Constraint(M.I, rule=c2_rule)
+
+
+    # c3: Um ativo só pode ser atibuido a uma base se ela estiver ocupada 
+    def c3_rule(M, i, j):
+        return M.x[i, j] <= sum(M.y[j, k] for k in M.K)
+
+    M.c3 = pyo.Constraint(M.I, M.J, rule=c3_rule)
+
+
+    # c4: Cada ativo deve ser atribuido a exatamente uma equipe
+    def c4_rule(M, i):
+        return sum(M.h[i, k] for k in M.K) == 1
+
+    M.c4 = pyo.Constraint(M.I, rule=c4_rule)
+
+
+    # c5: Compatibilidade entre a alocação do ativo, da equipe e da base
+    # Um ativo i alocado à base j só pode ser atribuido a uma equipe k se estiver ocupando a mesma base j 
+    def c5_rule(M, i, j, k):
+        return M.h[i, k] + M.x[i, j] <= 1 + M.y[j, k]
+
+    M.c5 = pyo.Constraint(M.I, M.J, M.K, rule=c5_rule)
+
+
+    # c6: Carga mínima de ativos por equipe. eta: 0.2
+    carga_min = math.ceil(eta * n / S)
+
+    def c6_rule(M, k):
+        return sum(M.h[i, k] for i in M.I) >= carga_min * M.z[k]
+
+    M.c6 = pyo.Constraint(M.K, rule=c6_rule)
+
+
+    # c7: Um ativo só pode ser alocado à equipe k se a mesma estiver contratada
+    def c7_rule(M, i, k):
+        return M.h[i, k] <= M.z[k]
+
+    M.c7 = pyo.Constraint(M.I, M.K, rule=c7_rule)
+
+
+    # c8: simentria. Ou seja, evita repetições. Ex. para sum(z) = 3; z = (1, 1, 1, 0, 0, 0, 0, 0) 
+    # sem precisar testar outras configurações como z = (0,0,1,0,1,0,1,0)
+    def sim_rule(M, k):
+        return M.z[k] >= M.z[k + 1]
+
+    M.sim = pyo.Constraint(pyo.RangeSet(S - 1), rule=sim_rule)
 
     # AUGMECON2: f2 + s = eps, s >= 0 (folga, pois f2 e minimizado)
     M.eps = pyo.Param(initialize=S, mutable=True)
     M.r2 = pyo.Param(initialize=1, mutable=True)
     M.f1_lim = pyo.Param(initialize=1e12, mutable=True)
-    M.f2_lim = pyo.Param(initialize=S, mutable=True)
     M.delta = pyo.Param(initialize=delta)
     M.s = pyo.Var(within=pyo.NonNegativeReals)
     M.ceps = pyo.Constraint(expr=M.f2 + M.s == M.eps)
     M.cf1 = pyo.Constraint(expr=M.f1 <= M.f1_lim)
-    M.cf2 = pyo.Constraint(expr=M.f2 <= M.f2_lim)
 
     # objetivos alternativos (um ativo por vez)
     M.obj_f1 = pyo.Objective(expr=M.f1, sense=pyo.minimize)
@@ -70,24 +118,41 @@ def _resolver(M, objetivo, gap=0.0, tempo=600):
     raise RuntimeError(f'solver terminou com {res.termination_condition} (limite de tempo?)')
 
 
-def _payoff(M, S=8, tol_f1=1e-6):
-    """Tabela payoff lexicografica (Mavrotas 2009, sec. 3.1). Para p = 2 ela da o nadir exato."""
-    M.eps = S
-    M.cf1.deactivate(); M.cf2.deactivate()
 
-    # linha 1: min f1, depois min f2 com f1 fixo no otimo (f1 inteiro -> folga 0.5 basta)
-    _resolver(M, M.obj_f1);  f1_min = pyo.value(M.f1)
-    M.f1_lim = f1_min + tol_f1; M.cf1.activate()
-    _resolver(M, M.obj_f2);  f2_max = round(pyo.value(M.f2))
+def _payoff(M, S=8, tol_f1=1e-6):
+    """
+    Tabela payoff lexicografica (Mavrotas 2009, sec. 3.1).
+    Fornece os extremos da fronteira: (f1_min, f2_max) e (f1_max, f2_min).
+    """
+    # Com eps = S a restricao f2 + s = eps nao limita nada, pois f2 <= S sempre.
+    # A restricao auxiliar cf1 (f1 fixo no otimo) comeca desligada.
+    M.eps = S
     M.cf1.deactivate()
 
-    # linha 2: min f2, depois min f1 com f2 fixo no otimo
-    _resolver(M, M.obj_f2);  f2_min = round(pyo.value(M.f2))
-    M.f2_lim = f2_min; M.cf2.activate()
-    _resolver(M, M.obj_f1);  f1_max = pyo.value(M.f1)
-    M.cf2.deactivate()
+    # Linha 1, etapa 1: menor distancia possivel
+    _resolver(M, M.obj_f1)
+    f1_min = pyo.value(M.f1)
 
-    return dict(f1_min=f1_min, f1_max=f1_max, f2_min=f2_min, f2_max=f2_max)
+    # Linha 1, etapa 2: entre as solucoes com f1 = f1_min, a que usa menos equipes.
+    # Fixamos f1 no otimo com a restricao f1 <= f1_min + tol e minimizamos f2.
+    M.f1_lim = f1_min + tol_f1
+    M.cf1.activate()
+    _resolver(M, M.obj_f2)
+    f2_max = round(pyo.value(M.f2))
+    M.cf1.deactivate()
+
+    # Linha 2, etapa 1: menor numero de equipes possivel
+    _resolver(M, M.obj_f2)
+    f2_min = round(pyo.value(M.f2))
+
+    # Linha 2, etapa 2: entre as solucoes com f2 = f2_min, a de menor distancia.
+    # A propria restricao epsilon fixa f2: com eps = f2_min, f2 + s = f2_min e s >= 0
+    # obrigam f2 = f2_min.
+    M.eps = f2_min
+    _resolver(M, M.obj_f1)
+    f1_max = pyo.value(M.f1)
+
+    return {'f1_min': f1_min, 'f1_max': f1_max, 'f2_min': f2_min, 'f2_max': f2_max}
 
 
 def _extrair(M, e):
