@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
 
-    pasta = Path.cwd()
-    arquivo = pasta / 'resultados_V1.csv'
+    pasta = Path.cwd() 
+    arquivo = pasta / 'resultados_modelo2.csv'
     arquivo_cordenadas = pasta / 'identificadores.csv'
 
     dados_pareto = pd.read_csv(arquivo, sep=';', decimal=',')

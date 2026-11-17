@@ -1,13 +1,6 @@
 """
-Gráfico de atribuição ativo -> base, no estilo da Figura do enunciado
-(ex-resultado.png): bases como pentágono (vazio = disponível, preenchido
-= ocupada), ativos como ponto, e uma linha ligando cada ativo à sua base.
-
-Pré-requisitos (gerados pelo script do modelo, já com a correção do S
-dinâmico aplicada):
-  - identificadores.csv   (lat/lon de bases e ativos, com base_id/ativo_id)
-  - atribuicoes_V2.csv    (formato longo: eps; ativo_id; base_id)
-  - resultados_V2.csv     (um ponto da fronteira por linha, com a coluna 'bases')
+Gráfico de atribuição ativo -> base (estilo ex-resultado.png), lendo direto
+do resultados_modelo2.csv gerado pelo modelo_2.py.
 """
 import ast
 import pandas as pd
@@ -20,19 +13,25 @@ def plotar_atribuicao(eps_escolhido, pasta=None, salvar=True, mostrar=True):
     pasta = Path(pasta or Path.cwd())
 
     ident = pd.read_csv(pasta / "identificadores.csv", sep=";", decimal=",")
-    bases_coord = ident.drop_duplicates("base_id")[["base_id", "lat_base", "lon_base"]].set_index("base_id")
-    ativos_coord = ident.drop_duplicates("ativo_id")[["ativo_id", "lat_ativo", "lon_ativo"]].set_index("ativo_id")
 
-    atrib = pd.read_csv(pasta / "atribuicoes_V2.csv", sep=";", decimal=",")
-    atrib_eps = atrib[atrib["eps"] == eps_escolhido]
-    if atrib_eps.empty:
-        raise ValueError(f"Nenhuma atribuição encontrada para eps={eps_escolhido}. "
-                          f"Valores disponíveis: {sorted(atrib['eps'].unique())}")
+    bases_coord = ident.drop_duplicates("base_id")[["base_id", "lat_base", "lon_base"]].copy()
+    bases_coord["base_id"] += 1   # alinha com a numeração 1..m do modelo
+    bases_coord = bases_coord.set_index("base_id")
 
-    pontos = pd.read_csv(pasta / "resultados_V2.csv", sep=";", decimal=",")
-    linha = pontos[pontos["eps"] == eps_escolhido].iloc[0]
-    # 'bases' foi salvo como texto de lista Python (ex.: "[0, 2]") -> parse seguro
+    ativos_coord = ident.drop_duplicates("ativo_id")[["ativo_id", "lat_ativo", "lon_ativo"]].copy()
+    ativos_coord["ativo_id"] += 1   # alinha com a numeração 1..n do modelo
+    ativos_coord = ativos_coord.set_index("ativo_id")
+
+    pontos = pd.read_csv(pasta / "resultados_modelo2.csv", sep=";", decimal=",")
+    linha = pontos[pontos["eps"] == eps_escolhido]
+    if linha.empty:
+        raise ValueError(f"Nenhum ponto encontrado para eps={eps_escolhido}. "
+                          f"Valores disponíveis: {sorted(pontos['eps'].unique())}")
+    linha = linha.iloc[0]
+
     bases_ocupadas = set(ast.literal_eval(str(linha["bases"])))
+    atrib = ast.literal_eval(str(linha["atrib"]))              # {ativo_id: base_id}
+    atrib = {int(k): int(v) for k, v in atrib.items()}
 
     fig, ax = plt.subplots(figsize=(9, 9))
 
@@ -43,8 +42,7 @@ def plotar_atribuicao(eps_escolhido, pasta=None, salvar=True, mostrar=True):
                    facecolor="tab:green" if ocupada else "white",
                    edgecolor="tab:green", linewidth=1.6, zorder=3)
 
-    for _, linha_a in atrib_eps.iterrows():
-        ativo_id, base_id = linha_a["ativo_id"], linha_a["base_id"]
+    for ativo_id, base_id in atrib.items():
         lat_a, lon_a = ativos_coord.loc[ativo_id, ["lat_ativo", "lon_ativo"]]
         lat_b, lon_b = bases_coord.loc[base_id, ["lat_base", "lon_base"]]
         ax.plot([lon_a, lon_b], [lat_a, lat_b], color="steelblue",
@@ -55,16 +53,16 @@ def plotar_atribuicao(eps_escolhido, pasta=None, salvar=True, mostrar=True):
 
     legenda = [
         Line2D([0], [0], marker="p", color="w", markerfacecolor="white",
-               markeredgecolor="tab:green", markersize=15, label="Bases disponível"),
+               markeredgecolor="tab:green", markersize=15, label="Base disponível"),
         Line2D([0], [0], marker="p", color="w", markerfacecolor="tab:green",
-               markeredgecolor="tab:green", markersize=15, label="Bases ocupada"),
+               markeredgecolor="tab:green", markersize=15, label="Base ocupada"),
         Line2D([0], [0], marker="o", color="w", markerfacecolor="purple",
                markersize=9, label="Ativos"),
     ]
     ax.legend(handles=legenda, loc="best")
     ax.set_xlabel("Longitude")
     ax.set_ylabel("Latitude")
-    ax.set_title(f"Atribuição de ativos às bases (S = {eps_escolhido} equipes)")
+    ax.set_title(f"Atribuição de ativos às bases ({eps_escolhido} equipes)")
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
 
@@ -77,6 +75,4 @@ def plotar_atribuicao(eps_escolhido, pasta=None, salvar=True, mostrar=True):
 
 
 if __name__ == "__main__":
-    # troque pelo S (número de equipes) da solução que vocês escolherem
-    # na tomada de decisão multiatributo (Entrega 3.v)
-    plotar_atribuicao(eps_escolhido=2)
+    plotar_atribuicao(eps_escolhido=3)
