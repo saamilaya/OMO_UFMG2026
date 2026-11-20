@@ -66,8 +66,7 @@ def _construir_modelo(d, Smax=8, eta=0.2, delta=1e-3):
     # Cada equipe empregada deve manter pelo menos eta*n/s ativos, em que s = f2 - Restrição não linear
     carga_min = {s: math.ceil(eta * n / s) for s in range(1, Smax + 1)}
 
-    # Linearização: com a quebra de simetria (c8), as equipes empregadas são as
-    # primeiras, e (z[s] - z[s+1]) vale 1 só para s = f2 (com z[Smax+1] = 0).
+    # Linearização com a quebra de simetria (c8)
     # Assim, para a equipe k:
     #   - se z[k] = 1, a soma abaixo vale exatamente L(f2);
     #   - se z[k] = 0, todos os z[s] com s >= k são nulos e a soma vale 0.
@@ -95,7 +94,7 @@ def _construir_modelo(d, Smax=8, eta=0.2, delta=1e-3):
 
     M.sim = pyo.Constraint(pyo.RangeSet(Smax - 1), rule=sim_rule)
 
-    # AUGMECON2: f2 + folga = eps, folga >= 0 (folga, pois f2 e minimizado)
+    # AUGMECON2: f2 + folga = eps, folga >= 0 
     M.eps = pyo.Param(initialize=Smax, mutable=True)
     M.r2 = pyo.Param(initialize=1, mutable=True)
     M.f1_lim = pyo.Param(initialize=1e12, mutable=True)
@@ -129,14 +128,12 @@ def _resolver(M, objetivo, tempo=600):
         'mip_abs_gap': 0.0,
         'time_limit': tempo,   # segundos
     }
-    # O Pyomo copia a solucao para as variaveis do modelo logo apos resolver.
-    # Se o problema for inviavel, solve() levanta um RuntimeError; no laco do
-    # AUGMECON2 isso nao ocorre, pois eps >= f2_min e sempre viavel.
+   
     resultado = solver.solve(M)
     status = resultado.termination_condition
 
     if status != TC.optimal:
-        # Ex.: estourou o limite de tempo; a solucao carregada nao e otima
+        # a solucao carregada nao e otima
         raise RuntimeError(f'solver terminou com status {status}')
 
     # Matrizes de decisao. O solver devolve binarias como 0.9999999 ou 1e-10,
@@ -158,19 +155,18 @@ def _resolver(M, objetivo, tempo=600):
 
 def _payoff(M, Smax=8, tol_f1=1e-6):
     """
-    Tabela payoff lexicografica (Mavrotas 2009, sec. 3.1).
-    Fornece os extremos da fronteira: (f1_min, f2_max) e (f1_max, f2_min).
+    Tabela payoff lexicografica - Fornece os extremos da fronteira: (f1_min, f2_max) e (f1_max, f2_min).
     """
     # Com eps = Smax a restricao f2 + folga = eps nao limita nada, pois f2 <= Smax sempre.
     # A restricao auxiliar cf1 (f1 fixo no otimo) comeca desligada.
     M.eps = Smax
     M.cf1.deactivate()
 
-    # Linha 1, etapa 1: menor distancia possivel
+    # menor distancia possivel
     solucao = _resolver(M, M.obj_f1)
     f1_min = solucao['f1']
 
-    # Linha 1, etapa 2: entre as solucoes com f1 = f1_min, a que usa menos equipes.
+    # entre as solucoes com f1 = f1_min, a que usa menos equipes.
     # Fixamos f1 no otimo com a restricao f1 <= f1_min + tol e minimizamos f2.
     M.f1_lim = f1_min + tol_f1
     M.cf1.activate()
@@ -178,13 +174,11 @@ def _payoff(M, Smax=8, tol_f1=1e-6):
     f2_max = solucao['f2']
     M.cf1.deactivate()
 
-    # Linha 2, etapa 1: menor numero de equipes possivel
+    # menor numero de equipes possivel
     solucao = _resolver(M, M.obj_f2)
     f2_min = solucao['f2']
 
-    # Linha 2, etapa 2: entre as solucoes com f2 = f2_min, a de menor distancia.
-    # A propria restricao epsilon fixa f2: com eps = f2_min, f2 + folga = f2_min e folga >= 0
-    # obrigam f2 = f2_min.
+    # entre as solucoes com f2 = f2_min, a de menor distancia.
     M.eps = f2_min
     solucao = _resolver(M, M.obj_f1)
     f1_max = solucao['f1']
@@ -193,13 +187,7 @@ def _payoff(M, Smax=8, tol_f1=1e-6):
 
 
 def _augmecon2(M, payoff, passo=1):
-    """
-    Laco de Mavrotas & Florios (2013), fig. 1, para minimizacao:
-    eps percorre f2 do pior (f2_max) ao melhor (f2_min) valor, apertando a restricao.
-    Apos cada solucao, b = int(folga/passo) iteracoes seguintes repetiriam a mesma solucao
-    (so a folga mudaria) e sao puladas. Como eps >= f2_min, todo subproblema e viavel
-    e a saida antecipada por inviabilidade (necessaria com 3 ou mais objetivos) nao ocorre.
-    """
+    
     f2_min, f2_max = payoff['f2_min'], payoff['f2_max']
     M.r2 = max(f2_max - f2_min, 1)
     pontos = []
