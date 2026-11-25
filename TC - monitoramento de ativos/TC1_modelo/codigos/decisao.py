@@ -187,10 +187,10 @@ if __name__ == "__main__":
     for _, row in df.iterrows():
         ax.annotate(f"{int(row['eps'])}", (row["f1"], row["f2"]),
                     textcoords="offset points", xytext=(6, 4), fontsize=9)
-    ax.set_xlabel("f1 — Distância total (km)")
-    ax.set_ylabel("f2 — Número de equipes")
-    ax.set_title("Fronteira avaliada na decisão multiatributo")
-    ax.legend()
+    ax.set_xlabel("f1 — Distância total (km)", fontsize=15)
+    ax.set_ylabel("f2 — Número de equipes", fontsize=15)
+    ax.set_title("Fronteira avaliada na decisão multiatributo", fontsize=15)
+    ax.legend(fontsize=15)
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
     plt.savefig(pasta / "decisao_fronteira.png", dpi=150)

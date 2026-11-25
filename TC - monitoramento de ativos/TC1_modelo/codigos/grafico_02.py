@@ -60,9 +60,9 @@ def plotar_atribuicao(eps_escolhido, pasta=None, salvar=True, mostrar=True):
                markersize=9, label="Ativos"),
     ]
     ax.legend(handles=legenda, loc="best")
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("Latitude")
-    ax.set_title(f"Atribuição de ativos às bases ({eps_escolhido} equipes)")
+    ax.set_xlabel("Longitude", fontsize=20)
+    ax.set_ylabel("Latitude", fontsize=20)
+    ax.set_title(f"Atribuição de ativos às bases ({eps_escolhido} equipes)", fontsize=20)
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
 
@@ -75,4 +75,4 @@ def plotar_atribuicao(eps_escolhido, pasta=None, salvar=True, mostrar=True):
 
 
 if __name__ == "__main__":
-    plotar_atribuicao(eps_escolhido=3)
+    plotar_atribuicao(eps_escolhido=7)

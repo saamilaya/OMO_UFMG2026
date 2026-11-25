@@ -45,10 +45,10 @@ def grafico_delta(pasta=None, salvar=True, mostrar=True):
 
     ax.set_xticks(x)
     ax.set_xticklabels(rotulos)
-    ax.set_xlabel("Par de soluções vizinhas (número de equipes)")
-    ax.set_ylabel("Distância euclidiana normalizada")
-    ax.set_title("Indicador Δ: espaçamento real da fronteira vs. ideal uniforme")
-    ax.legend()
+    ax.set_xlabel("Par de soluções vizinhas (número de equipes)", fontsize=15)
+    ax.set_ylabel("Distância euclidiana normalizada", fontsize=15)
+    ax.set_title("Indicador Δ: espaçamento real da fronteira vs. ideal uniforme", fontsize=15)
+    ax.legend(fontsize=15)
     ax.grid(True, alpha=0.2, axis="y")
     plt.tight_layout()
 
@@ -89,10 +89,10 @@ def grafico_hipervolume(pasta=None, salvar=True, mostrar=True):
 
     ax.set_xlim(-0.05, r[0] + 0.05)
     ax.set_ylim(-0.05, r[1] + 0.05)
-    ax.set_xlabel("f1 normalizado (distância)")
-    ax.set_ylabel("f2 normalizado (equipes)")
-    ax.set_title(f"Área dominada (Hipervolume ≈ {hv_total:.4f})")
-    ax.legend(loc="upper right")
+    ax.set_xlabel("f1 normalizado (distância)", fontsize=15)
+    ax.set_ylabel("f2 normalizado (equipes)", fontsize=15)
+    ax.set_title(f"Área dominada (Hipervolume ≈ {hv_total:.4f})", fontsize=15)
+    ax.legend(loc="lower left", fontsize=15)
     ax.grid(True, alpha=0.2)
     plt.tight_layout()
 

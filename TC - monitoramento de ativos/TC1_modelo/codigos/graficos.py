@@ -20,14 +20,15 @@ if __name__ == "__main__":
         ax=ax,
         marker='o',
         color='blue',
+        s=60
         #label='Soluções'
     )
 
-    ax.set_xlabel('Distancia')
-    ax.set_ylabel('Equipes empregadas')
-    ax.set_title('Fronteira de Pareto')
+    ax.set_xlabel('Distancia', fontsize=20)
+    ax.set_ylabel('Equipes empregadas', fontsize=20)
+    ax.set_title('Fronteira de Pareto', fontsize=20)
     ax.grid(True, alpha=0.3)
-    ax.legend()
+    ax.legend(fontsize=15)
 
     plt.tight_layout()
     plt.show()
