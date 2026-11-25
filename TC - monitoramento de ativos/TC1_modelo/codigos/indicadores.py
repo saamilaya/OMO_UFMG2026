@@ -30,8 +30,7 @@ def calcular_indicadores(pasta=None):
     d = np.linalg.norm(np.diff(pts, axis=0), axis=1)   # distancias entre vizinhos
     d_media = d.mean()
 
-    # distancia, em cada objetivo, entre o extremo da fronteira e a utopia
-    # (como u foi tirado da propria fronteira exata, da exatamente 0 aqui)
+    # fronteira exata: extremos coincidem com os da fronteira verdadeira, logo d_f = d_l = 0.
     d_f1e = abs(pts[np.argmin(f1)][0])
     d_f2e = abs(pts[np.argmin(f2)][1])
     soma_extremos = d_f1e + d_f2e
