@@ -2,7 +2,7 @@
 Entrega 3.v -- Tomada de decisao multiatributo.
 Criterios (todos de MINIMIZACAO): f1 (distancia), f2 (equipes),
 custo (instalacao das bases), robustez (impacto da falha da base mais carregada).
-Metodos: AHP (pesos) + TOPSIS + PROMETHEE II + ELECTRE I, com comparacao.
+Metodos: AHP (pesos) + TOPSIS + PROMETHEE II, com comparacao.
 """
 import ast
 import numpy as np
@@ -150,36 +150,6 @@ def promethee2(df, pesos):
     return out.sort_values("promethee_phi", ascending=False).reset_index(drop=True)
 
 
-def electre1(df, pesos):
-    X = df[CRITERIOS].to_numpy(dtype=float)
-    w = np.array([pesos[c] for c in CRITERIOS])
-    n = len(X)
-    ranges = X.max(axis=0) - X.min(axis=0)
-    ranges[ranges == 0] = 1.0
-
-    C = np.zeros((n, n))
-    D = np.zeros((n, n))
-    for a in range(n):
-        for b in range(n):
-            if a == b:
-                continue
-            concorda = X[a] <= X[b]
-            C[a, b] = w[concorda].sum() / w.sum()
-            pior = (X[a] - X[b]) / ranges
-            pior_perde = pior[~concorda]
-            D[a, b] = pior_perde.max() if len(pior_perde) else 0.0
-
-    c_estrela = C[~np.eye(n, dtype=bool)].mean()
-    d_estrela = D[~np.eye(n, dtype=bool)].mean()
-    sobreclassifica = (C >= c_estrela) & (D <= d_estrela)
-    np.fill_diagonal(sobreclassifica, False)
-    dominado = sobreclassifica.any(axis=0)
-    nucleo = np.where(~dominado)[0]
-
-    return {"c_estrela": c_estrela, "d_estrela": d_estrela,
-            "nucleo_eps": df.iloc[nucleo]["eps"].tolist()}
-
-
 if __name__ == "__main__":
     df, pasta = montar_matriz_decisao()
 
@@ -191,17 +161,15 @@ if __name__ == "__main__":
         pesos, lam, CR = pesos_ahp(ordem)
         r_topsis = topsis(df, pesos)
         r_prom = promethee2(df, pesos)
-        r_elec = electre1(df, pesos)
 
         vt = int(r_topsis.iloc[0]["eps"])
         vp = int(r_prom.iloc[0]["eps"])
-        nucleo = r_elec["nucleo_eps"]
 
         print(f"\n=== Cenário: {nome_cenario} ===")
         print("Pesos:", {c: round(pesos[c], 3) for c in CRITERIOS}, f" (CR={CR:.4f})")
-        print(f"TOPSIS -> eps={vt}   PROMETHEE II -> eps={vp}   ELECTRE (núcleo) -> {nucleo}")
+        print(f"TOPSIS -> eps={vt}   PROMETHEE II -> eps={vp}")
 
-        resumo.append({"cenário": nome_cenario, "TOPSIS": vt, "PROMETHEE_II": vp, "ELECTRE_núcleo": nucleo})
+        resumo.append({"cenário": nome_cenario, "TOPSIS": vt, "PROMETHEE_II": vp})
 
         # guarda os resultados do cenário "robustez dominante" pra gerar a figura final
         if nome_cenario == "robustez dominante (atual)":
